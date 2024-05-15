@@ -7,31 +7,36 @@
 #include "SD.h"         // SD
 #include "FS.h"         // SD
 #include <string>
+#include <Arduino.h>
+#include "soc/soc.h"
+#include "soc/rtc_cntl_reg.h"
 //bibliotecas -----------------------------------------------------------------------------------------------------------
 
 // TBEAM-1
 //configs ---------------------------------------------------------------------------------------------------------------
 //chaves de autenticação OTAA
-#define APPEUI_KEY 0x46, 0x58, 0x54, 0x37, 0x46, 0x63, 0x34, 0x35                                                  //lsb -> ID aplicação
-#define DEVEUI_KEY 0x85, 0x74, 0x06, 0xD0, 0x7E, 0xD5, 0xB3, 0x70                                                  //lsb -> ID dispositivo
-#define APPKEY_KEY 0x5E, 0x24, 0x72, 0x71, 0xDE, 0x23, 0xF1, 0x8E, 0xC7, 0xE6, 0x79, 0x3F, 0x94, 0x92, 0x83, 0xAD  //msb -> chave de aplicação AES, unica de cada dispositivo
+#define APPEUI_KEY 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00                                                  //lsb -> ID aplicação
+#define DEVEUI_KEY 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00                                                  //lsb -> ID dispositivo
+#define APPKEY_KEY 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  //msb -> chave de aplicação AES, unica de cada dispositivo
 
-
-// TBEAM-2
+/* // TBEAM-2
 //configs ---------------------------------------------------------------------------------------------------------------
 //chaves de autenticação OTAA
-//#define APPEUI_KEY 0x23, 0x31, 0x21, 0x24, 0x42, 0x43, 0x31, 0x12                                                //lsb
-//#define DEVEUI_KEY 0x84, 0x74, 0x06, 0xD0, 0x7E, 0xD5, 0xB3, 0x70                                                 //lsb
-//#define APPKEY_KEY 0x03, 0x79, 0x20, 0xBA, 0xEC, 0xA0, 0xBA, 0x33, 0xB9, 0x97, 0xE6, 0x18, 0xCB, 0x9C, 0x2F, 0xC9  //msb
-
+#define APPEUI_KEY 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00                                                  //lsb
+#define DEVEUI_KEY 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00                                                  //lsb
+#define APPKEY_KEY 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  //msb
+*/
 
 /*// TBEAM-4
 //configs ---------------------------------------------------------------------------------------------------------------
 //chaves de autenticação OTAA
 #define APPEUI_KEY 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00                                                  //lsb
-#define DEVEUI_KEY 0xFE, 0x1D, 0x06, 0xD0, 0x7E, 0xD5, 0xB3, 0x70                                                  //lsb
-#define APPKEY_KEY 0x1D, 0x3D, 0x39, 0x82, 0x9E, 0x77, 0xCA, 0x01, 0xF6, 0xA8, 0x84, 0x0E, 0xE5, 0x43, 0xB8, 0x6C  //msb
+#define DEVEUI_KEY 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00                                                  //lsb
+#define APPKEY_KEY 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  //msb
 */
+
+#define uS_TO_S_FACTOR 1000000  /* Conversion factor for micro seconds to seconds */
+#define TIME_TO_SLEEP  1800       /* Time ESP32 will go to sleep (in seconds) */
 
 //constante de intervalo de envio
 #define INTERVALO_ENVIO 30  //em segundos
@@ -45,6 +50,9 @@
 #define DIO0_PIN 26
 #define DIO1_PIN 33
 #define DIO2_PIN 32
+
+//função de conversão de modulo
+#define MODULO(x) ((x)>=0?(x):-(x)) 
 
 //mapa de pinos SD
 #define SD_MISO 35
@@ -143,11 +151,11 @@ void configureAXP() {
   } else {
     Serial.println("AXP192 Begin FAIL");
   }
-  axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);
-  axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
-  axp.setPowerOutPut(AXP192_DCDC2, AXP202_ON);
-  axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
-  axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
+  axp.setPowerOutPut(AXP192_LDO2, AXP202_ON); //Lora
+  axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);  //GPS
+  axp.setPowerOutPut(AXP192_DCDC2, AXP202_ON); //OLED
+  axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON); //Lora
+  axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON); //GPS
 }
 //axp -------------------------------------------------------------------------------------------------------------------
 
@@ -230,6 +238,23 @@ void printPacket() {
 }
 //packet ----------------------------------------------------------------------------------------------------------------
 
+//deep sleep ------------------------------------------------------------------------------------------------------------
+void print_wakeup_reason(){
+  esp_sleep_wakeup_cause_t wakeup_reason;
+
+  wakeup_reason = esp_sleep_get_wakeup_cause();
+
+  switch(wakeup_reason){
+    case ESP_SLEEP_WAKEUP_EXT0 : Serial.println("Wakeup caused by external signal using RTC_IO"); break;
+    case ESP_SLEEP_WAKEUP_EXT1 : Serial.println("Wakeup caused by external signal using RTC_CNTL"); break;
+    case ESP_SLEEP_WAKEUP_TIMER : Serial.println("Wakeup caused by timer"); break;
+    case ESP_SLEEP_WAKEUP_TOUCHPAD : Serial.println("Wakeup caused by touchpad"); break;
+    case ESP_SLEEP_WAKEUP_ULP : Serial.println("Wakeup caused by ULP program"); break;
+    default : Serial.printf("Wakeup was not caused by deep sleep: %d\n",wakeup_reason); break;
+  }
+}
+//deep sleep ------------------------------------------------------------------------------------------------------------
+
 //LMIC ------------------------------------------------------------------------------------------------------------------
 //chaves OTAA LMIC
 static const u1_t PROGMEM APPEUI[8] = { APPEUI_KEY };  //lsb format
@@ -293,20 +318,61 @@ void onEvent(ev_t ev) {
       os_setTimedCallback(&sendjob, os_getTime() + sec2osticks(TX_INTERVAL), do_send);
       break;
     default:
-      Serial.print(os_getTime());
-      Serial.print(": ");
-      Serial.print(F("Unknown event: "));
-      Serial.println((unsigned)ev);
       break;
   }
 }
 
+float prev_lattitude = 0.0; //variaveis para verificar se houve movimento
+float prev_longitude = 0.0;
+int sleeptime = 0; //variavel para verificar o tempo de hibernação
+
 //função de envio LMIC
 void do_send(osjob_t *j) {
   //verifica se já está ocorrendo uma tranmissão
+  
+
   if (LMIC.opmode & OP_TXRXPEND)
     Serial.println("OP_TXRXPEND, not sending");
   else {
+    /* if(gps.location.lat() - prev_lattitude > 0.0001 || gps.location.lng() - prev_longitude > 0.0001){ // verifica se houve movimento
+      sleeptime = 0;
+    } else{
+      sleeptime += INTERVALO_ENVIO; // a variavel sleeptime representa o tempo desde que o gps parou em segundos
+    }
+    */
+
+    while(gps.location.lat() - prev_lattitude > 0.0001 || gps.location.lng() - prev_longitude > 0.0001){ // verifica se houve movimento
+      sleeptime += 1; // a variavel sleeptime representa o tempo desde que o gps parou em segundos
+      
+      Serial.print("sleeptime = ");
+      Serial.println(sleeptime);
+
+      if(sleeptime > 1800){ // caso o tempo ultrapasse 30 minutos (1800/60 = 30), o axp desliga e entra em modo de hibernação
+        Serial.println("Desligando o AXP");
+        axp.setPowerOutPut(AXP192_LDO2, AXP202_OFF);
+        axp.setPowerOutPut(AXP192_LDO3, AXP202_OFF);
+        axp.setPowerOutPut(AXP192_DCDC2, AXP202_OFF);
+        axp.setPowerOutPut(AXP192_EXTEN, AXP202_OFF);
+        axp.setPowerOutPut(AXP192_DCDC1, AXP202_OFF);
+
+        Serial.println("Entrando em modo de hibernação...");
+
+        Serial.flush(); //limpa o buffer de serial
+
+        esp_deep_sleep_start();
+      }
+
+      delay(1000);
+    }
+    
+    prev_lattitude = gps.location.lat(); // atualiza a posição do gps
+    prev_longitude = gps.location.lng();
+
+    if(gps.hdop.value() == 9999 || (MODULO(gps.location.lat()) < 0.1 && MODULO(gps.location.lat())< 0.1)){ //HDOP 9999 geralmente significa que o GPS não está conectado ou não tem uma fixação válida - MODULO(gps.location.lat()) < 0.1 && MODULO(gps.location.lat())< 0.1 verifica se a posição do gps é 0,0 (posição inválida)
+      Serial.println("Posição inválida, não enviando pacote");
+      return;
+    }
+
     buildPacket(payload);  //*contrução do pacote para envio - packet.h
     printPacket();
     LMIC_setTxData2(1, payload, sizeof(payload), 0);  //função de envio LMIC
@@ -319,10 +385,25 @@ void do_send(osjob_t *j) {
 
 
 void setup() {
+  LMIC_setAdrMode(0);  //ativa o modo de ajuste de taxa de dados
+  LMIC_setDrTxpow(DR_SF7, 14);  //configura a taxa de dados e a potência de transmissão
+  // Desativa todas as fontes de despertar
+  esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_EXT0);
+  esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_EXT1);
+  esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TOUCHPAD);
+  esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ULP);
+  // Mantém a fonte de despertar do temporizador habilitada
+  // (não é necessário desativar, já que é a única fonte de despertar desejada)
+
+  esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR); //configura o tempo de hibernação
+  Serial.println("Setup ESP32 to sleep for every " + String(TIME_TO_SLEEP) + " Seconds"); //imprime o tempo de hibernação
+
 
   Serial.begin(SERIAL_BAUND);
 
   delay(3000);
+
+  print_wakeup_reason(); //imprime o motivo do despertar
 
   Serial.println("Starting");
 
