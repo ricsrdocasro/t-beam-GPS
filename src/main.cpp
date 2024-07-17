@@ -131,10 +131,10 @@ void setupSD() {
   if (!file) {
     Serial.println("SD: arquivo data.csv nao existe");
     Serial.println("SD: Criando arquivo...");
-    writeFile(SD, "/data.csv", "FCNT; LONGITUDE; LATITUDE; VELOCIDADE/ALTITUDE; HDOP; \r\n");
+    writeFile(SD, "/data.csv", "FCNT; LONGITUDE; LATITUDE; VELOCIDADE/ALTITUDE; HDOP; DATA; HORA \r\n");
   } else {
     Serial.println("SD: arquivo ja existe");
-    appendFile(SD, "/data.csv", "FCNT; LONGITUDE; LATITUDE; VELOCIDADE/ALTITUDE; HDOP; \r\n");
+    appendFile(SD, "/data.csv", "FCNT; LONGITUDE; LATITUDE; VELOCIDADE/ALTITUDE; HDOP; DATA; HORA \r\n");
   }
 
   file.close();
@@ -189,6 +189,10 @@ void buildPacket_toSD() {
   leitura.concat(";");
   leitura.concat(String(gps.hdop.value()));
   leitura.concat("; \r\n");
+  leitura.concat(String(gps.date.value())); //adiciona data
+  leitura.concat("; \r\n");
+  leitura.concat(String(gps.time.value())); //adiciona hora
+  leitura.concat("; \r\n");
   Serial.println(leitura);
   appendFile(SD, "/data.csv", leitura.c_str());
 }
@@ -239,7 +243,7 @@ void printPacket() {
 //packet ----------------------------------------------------------------------------------------------------------------
 
 //deep sleep ------------------------------------------------------------------------------------------------------------
-void print_wakeup_reason(){
+/* void print_wakeup_reason(){
   esp_sleep_wakeup_cause_t wakeup_reason;
 
   wakeup_reason = esp_sleep_get_wakeup_cause();
@@ -252,7 +256,7 @@ void print_wakeup_reason(){
     case ESP_SLEEP_WAKEUP_ULP : Serial.println("Wakeup caused by ULP program"); break;
     default : Serial.printf("Wakeup was not caused by deep sleep: %d\n",wakeup_reason); break;
   }
-}
+} */
 //deep sleep ------------------------------------------------------------------------------------------------------------
 
 //LMIC ------------------------------------------------------------------------------------------------------------------
@@ -321,11 +325,11 @@ void onEvent(ev_t ev) {
       break;
   }
 }
-
+/*
 float prev_lattitude = 0.0; //variaveis para verificar se houve movimento
 float prev_longitude = 0.0;
 int sleeptime = 0; //variavel para verificar o tempo de hibernação
-
+*/
 //função de envio LMIC
 void do_send(osjob_t *j) {
   //verifica se já está ocorrendo uma tranmissão
@@ -339,7 +343,7 @@ void do_send(osjob_t *j) {
     } else{
       sleeptime += INTERVALO_ENVIO; // a variavel sleeptime representa o tempo desde que o gps parou em segundos
     }
-    */
+    
 
     while(gps.location.lat() - prev_lattitude > 0.0001 || gps.location.lng() - prev_longitude > 0.0001){ // verifica se houve movimento
       sleeptime += 1; // a variavel sleeptime representa o tempo desde que o gps parou em segundos
@@ -372,7 +376,8 @@ void do_send(osjob_t *j) {
       Serial.println("Posição inválida, não enviando pacote");
       return;
     }
-
+    */
+    
     buildPacket(payload);  //*contrução do pacote para envio - packet.h
     printPacket();
     LMIC_setTxData2(1, payload, sizeof(payload), 0);  //função de envio LMIC
@@ -388,17 +393,20 @@ void setup() {
   LMIC_setAdrMode(0);  //ativa o modo de ajuste de taxa de dados
   LMIC_setDrTxpow(DR_SF7, 14);  //configura a taxa de dados e a potência de transmissão
   // Desativa todas as fontes de despertar
+  /*
   esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_EXT0);
   esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_EXT1);
   esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TOUCHPAD);
   esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ULP);
+  
   // Mantém a fonte de despertar do temporizador habilitada
   // (não é necessário desativar, já que é a única fonte de despertar desejada)
 
   esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR); //configura o tempo de hibernação
   Serial.println("Setup ESP32 to sleep for every " + String(TIME_TO_SLEEP) + " Seconds"); //imprime o tempo de hibernação
 
-
+  */
+  
   Serial.begin(SERIAL_BAUND);
 
   delay(3000);
